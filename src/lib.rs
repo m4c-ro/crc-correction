@@ -5,7 +5,7 @@
 //! bit errors in the CRC are also fixable.
 //!
 //! Uses the [crc](https://crates.io/crates/crc) crate for the actual CRC implementations. We support
-//! all 16, 32 and 64 bit CRC's.
+//! all 16, 32 and 64 bit CRC algorithms from [crc](https://crates.io/crates/crc).
 //!
 //! ### Example
 //!
@@ -17,15 +17,22 @@
 //! const MAX_MSG_LEN: usize = 256;
 //!
 //! // CRC instance to use
-//! const CRC: Crc<u32, Table<1>> = Crc::<u32, Table<1>>::new(&CRC_32_CKSUM);
+//! const CRC: Crc<u32, Table<1>> =
+//!     Crc::<u32, Table<1>>::new(&CRC_32_CKSUM);
 //!
-//! // Corrector instance. Note that this generates a lookup table for correction at compile time,
-//! // so runtime checks are faster.
-//! const CORRECTOR: CrcCorrector::<MAX_MSG_LEN, u32> = CrcCorrector::<MAX_MSG_LEN, u32>::new(CRC);
+//! // Corrector instance. Note that this generates a lookup
+//! // table for correction at compile time, so runtime
+//! // checks are faster.
+//! const CORRECTOR: CrcCorrector::<MAX_MSG_LEN, u32> =
+//!     CrcCorrector::<MAX_MSG_LEN, u32>::new(CRC);
 //!
 //! fn main() {
-//!     let mut msg = [0u8; 32]; // For example
-//!     let result = CORRECTOR.correct(&mut msg);
+//!     // Note that the length leaves 4 bytes room for CRC
+//!     //compared to MAX_MSG_LEN
+//!     let mut msg = [123u8; 28];
+//!     let crc = 0u32;
+//!
+//!     let result = CORRECTOR.correct(&mut msg, crc);
 //!
 //!     // Since we didn't calculate a CRC in this example
 //!     assert_eq!(result, Err(Error::MoreThanOneBitCorrupted));
@@ -45,20 +52,22 @@
 //! use crc_correction::CrcCorrector;
 //!
 //! const MAX_MSG_LEN: usize = 256;
-//! const CRC: Crc<u32, Table<1>> = Crc::<u32, Table<1>>::new(&CRC_32_CKSUM);
+//! const CRC: Crc<u32, Table<1>> =
+//!     Crc::<u32, Table<1>>::new(&CRC_32_CKSUM);
 //!
-//! // Allow the corrector table generation to take a long time during compilation
+//! // Allow the corrector table generation to take a long
+//! // time during compilation
 //! #[allow(long_running_const_eval)]
-//! const CORRECTOR: CrcCorrector::<MAX_MSG_LEN, u32> = CrcCorrector::<MAX_MSG_LEN, u32>::new(CRC);
-//!
+//! const CORRECTOR: CrcCorrector::<MAX_MSG_LEN, u32> =
+//!     CrcCorrector::<MAX_MSG_LEN, u32>::new(CRC);
 //! ```
 #![no_std]
 #![forbid(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
+#![allow(clippy::cast_possible_truncation)]
 
 use core::fmt::{Debug, Display, Formatter};
-use core::mem::size_of;
 use core::result::Result;
 
 use crc::{Crc, Table, Width};
@@ -66,7 +75,7 @@ use sort_const::const_quicksort;
 
 /// CRC Corrector
 ///
-/// Associated const 'CrcCorrector::L' refers to message length in bits including an appended CRC
+/// Associated const `CrcCorrector::L` refers to message length in bits including an appended CRC
 #[derive(Clone)]
 pub struct CrcCorrector<const L: usize, W: Width> {
     crc: Crc<W, Table<1>>,
@@ -109,32 +118,6 @@ macro_rules! crc_reflect {
     };
 }
 
-macro_rules! crc_bytes {
-    ($data:tt, $len:tt, u16) => {
-        [$data[$len - 2], $data[$len - 1]]
-    };
-    ($data:tt, $len:tt, u32) => {
-        [
-            $data[$len - 4],
-            $data[$len - 3],
-            $data[$len - 2],
-            $data[$len - 1],
-        ]
-    };
-    ($data:tt, $len:tt, u64) => {
-        [
-            $data[$len - 8],
-            $data[$len - 7],
-            $data[$len - 6],
-            $data[$len - 5],
-            $data[$len - 4],
-            $data[$len - 3],
-            $data[$len - 2],
-            $data[$len - 1],
-        ]
-    };
-}
-
 macro_rules! corrector_impl {
     ($uint:tt) => {
         impl<const L: usize> CrcCorrector<L, $uint> {
@@ -152,6 +135,7 @@ macro_rules! corrector_impl {
             /// In the last case the problem is similar to a hash collision. Either choose a longer
             /// CRC (64 bit vs 32 bit vs 16 bit) or a different algorithm. Ultimately there is a
             /// limit to the message length a CRC can correct errors for.
+            #[must_use]
             pub const fn new(crc: Crc<$uint, Table<1>>) -> Self {
                 // Ensure table length is within bounds
                 let mut table = [$uint::MIN; L];
@@ -174,7 +158,7 @@ macro_rules! corrector_impl {
                 let mut i = 0;
                 while i < L {
                     let byte = i >> 3;
-                    let bit = (1 << (i & 7)) as u8;
+                    let bit = 1u8 << (i & 7) as u8;
 
                     msg[byte] = bit;
 
@@ -205,32 +189,26 @@ macro_rules! corrector_impl {
                 }
             }
 
-            /// Correct message **with a CRC appended**. This is able to correct a single bit of
-            /// corruption in either the provided message or the provided CRC. This method mutates
-            /// the message to correct corruption but will not mutate it if correction fails.
-            ///
-            /// Input `data` should include the message as well as the received CRC for that
-            /// message appended in the last N bytes.
-            /// TODO: Better API
-            ///
-            /// This method will either return an error if correction could not be applied, or will
-            /// mutate the data with a single bit correction and return an indication of which bit
-            /// was the issue.
+            /// Correct message with a single bit of corruption in either the provided message or
+            /// the provided CRC. This method mutates the message to correct corruption but will
+            /// not mutate it if correction fails.
             ///
             /// If a correction is applied the CRC is validated again to ensure that the integrity
             /// of the data is okay. This isn't strictly necessary, but guards against any bugs
             /// which would incorrectly 'correct' data.
-            pub fn correct(&self, data: &mut [u8]) -> Result<Correction<$uint>, Error> {
-                if data.len() <= size_of::<$uint>() {
-                    return Err(Error::MissingAppendedCRC);
-                }
-
-                if data.len() << 3 > self.table.len() {
+            ///
+            /// # Errors
+            ///
+            /// This method will either return an error if correction could not be applied, or will
+            /// mutate the data with a single bit correction and return an indication of which bit
+            /// was the issue.
+            pub fn correct(&self, data: &mut [u8], mut crc: $uint) -> Result<Correction<$uint>, Error> {
+                if (data.len() << 3) + ($uint::BITS as usize) > self.table.len() {
                     return Err(Error::DataTooLong);
                 }
 
                 // If crc(data + padding + crc) = zero of an all zero's message then the data is fine
-                let crc2 = self.crc2(data);
+                let crc2 = self.crc2(data, crc);
                 if crc2 == self.zero_crc {
                     return Err(Error::NoError);
                 }
@@ -248,67 +226,67 @@ macro_rules! corrector_impl {
 
                 // If the CRC isn't in the table then the data is corrupted in more than one bit, and we
                 // can't correct it with this algorithm.
-                let Some(mut error_bit) = error_bit else {
+                let Some(error_bit) = error_bit else {
                     return Err(Error::MoreThanOneBitCorrupted);
                 };
 
-                // If the error bit is in the CRC and we've reflected the CRC in `crc2` then we need to
-                // reflect it back to correct the right bit
-                let msg_bit_len = ((data.len() - size_of::<$uint>()) << 3) as $uint;
-                if error_bit >= msg_bit_len && self.crc.algorithm.refout {
-                    let mut crc_error_bit = error_bit - msg_bit_len;
-                    crc_reflect!(crc_error_bit, $uint);
-                    error_bit = crc_error_bit + msg_bit_len;
+                let msg_bit_len = (data.len() << 3) as $uint;
+                let offset_byte = (error_bit >> 3) as usize;
+                let offset_bit = 1u8 << (error_bit & 7) as u8;
+                let mut crc_error_bit = error_bit.wrapping_sub(msg_bit_len);
+
+                // If the error bit is larger than data length then the error is in the CRC
+                if error_bit >= msg_bit_len {
+                    // If the CRC algorithm has reflect the CRC we need to reflect it back to
+                    // correct the right bit in the input
+                    if !self.crc.algorithm.refout {
+                        crc_reflect!(crc_error_bit, $uint);
+                    }
+
+                    let crc_offset_bit = 1 << (crc_error_bit as u8);
+                    crc ^= crc_offset_bit;
+                } else {
+                    // Flip erroneous bit in data
+                    data[offset_byte] ^= offset_bit;
                 }
 
-                // Flip erroneous bit
-                let offset_byte = (error_bit >> 3) as usize;
-                let offset_bit = (1 << (error_bit & 7)) as u8;
-                data[offset_byte] ^= offset_bit;
-
                 // Check if the correction worked with another CRC of data + appended CRC
-                let crc2 = self.crc2(&data);
+                let crc2 = self.crc2(&data, crc);
                 if crc2 != self.zero_crc {
                     // Correction failed, flip back the changed bit in input before returning
-                    data[offset_byte] ^= offset_bit;
+                    if error_bit < msg_bit_len {
+                        data[offset_byte] ^= offset_bit;
+                    }
                     return Err(Error::CorrectionFailed);
                 }
 
                 // If error bit is bigger than data bit length the error is in the CRC
                 if error_bit >= msg_bit_len {
-                    Ok(Correction::CRC {
-                        error_bit: error_bit - msg_bit_len,
-                    })
+                    Ok(Correction::CRC { error_bit: crc_error_bit })
                 } else {
                     Ok(Correction::Data { error_bit })
                 }
             }
 
             // Calculate CRC of data + appended CRC
-            fn crc2(&self, data: &[u8]) -> $uint {
+            fn crc2(&self, data: &[u8], mut crc: $uint) -> $uint {
                 // Before calculating the CRC of (data + crc) we need to
                 //  1. Modify the CRC so that it's not reflected or XOR'd
                 //  2. Insert padding zeros to extend the message to length L
 
                 // Reflect and XOR the CRC if the algorithm requires it
-                let len = data.len();
-                let crc_bytes = crc_bytes!(data, len, $uint);
-                let mut crc;
                 if self.crc.algorithm.refout {
-                    crc = $uint::from_le_bytes(crc_bytes)
-                } else {
-                    crc = $uint::from_be_bytes(crc_bytes)
+                    crc = crc.swap_bytes();
                 }
                 crc ^= self.crc.algorithm.xorout;
                 let crc_bytes = crc.to_be_bytes();
 
                 let mut digest = self.crc.digest_with_initial(0);
-                digest.update(&data[..len - size_of::<$uint>()]);
+                digest.update(&data);
                 digest.update(&crc_bytes);
 
                 // Extend data with zeros to bit length L
-                let data_bit_len = data.len() << 3;
-                let mut remaining_bits = self.table.len() - data_bit_len;
+                let mut remaining_bits = (self.table.len() - (data.len() << 3)) - ($uint::BITS as usize);
                 while remaining_bits >= 128 {
                     digest.update(&[0u8; 16]);
                     remaining_bits -= 128
@@ -355,8 +333,6 @@ pub enum Error {
     /// Provided data is too long for the `CrcCorrector`. Make sure to set `CrcCorrector::L`
     /// and `crc::Algorithm` appropriately.
     DataTooLong,
-    /// Expected CRC to be appended in last bytes of data, but the provided message is too short.
-    MissingAppendedCRC,
     /// Failed to correct the data. This indicates a bug in the CRC or CRC correction code. It will
     /// only be returned if a correction is applied mistakenly and the integrity double-check has
     /// caught the problem. The data passed in will have been returned to its original state.
@@ -382,9 +358,6 @@ impl Display for Error {
                     f,
                     "Message is too large for CRC correction with this CRC corrector"
                 )
-            }
-            Self::MissingAppendedCRC => {
-                write!(f, "Message is too small to contain appended CRC")
             }
             Self::CorrectionFailed => {
                 write!(

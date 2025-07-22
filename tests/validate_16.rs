@@ -73,35 +73,29 @@ const TEST_CORRECTORS: [CrcCorrector<144, u16>; N_ALGOS] = [
 
 use proptest::prelude::*;
 
-fn add_checksum_to_message(msg: &[u8], algo_index: usize) -> Vec<u8> {
-    let mut msg_vec = Vec::with_capacity(msg.len() + 2);
-    msg_vec.extend_from_slice(&msg);
-
+fn calculate_checksum_for_message(msg: &[u8], algo_index: usize) -> u16 {
     let crc = Crc::<u16, Table<1>>::new(&TEST_ALGOS_16[algo_index]);
-    let csum = crc.checksum(&msg);
-    msg_vec.extend_from_slice(&[(csum >> 8) as u8, csum as u8]);
-
-    msg_vec
+    crc.checksum(&msg)
 }
 
 proptest! {
     #[test]
-    fn valid_messages_return_no_error(msg: [u8; 16], algo_index in 0..N_ALGOS) {
+    fn valid_messages_return_no_error(mut msg: [u8; 16], algo_index in 0..N_ALGOS) {
         let algo_index = algo_index as usize;
-        let mut msg_vec = add_checksum_to_message(&msg, algo_index);
-        let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
+        let crc = calculate_checksum_for_message(&msg, algo_index);
+        let result = TEST_CORRECTORS[algo_index].correct(&mut msg, crc);
 
         assert_eq!(result, Err(Error::NoError));
     }
 
     #[test]
-    fn invalid_messages_are_corrected(msg: [u8; 16], algo_index in 0..N_ALGOS, error_byte in 0..16, error_bit in 0..8) {
+    fn invalid_messages_are_corrected(mut msg: [u8; 16], algo_index in 0..N_ALGOS, error_byte in 0..16, error_bit in 0..8) {
         let algo_index = algo_index as usize;
-        let mut msg_vec = add_checksum_to_message(&msg, algo_index);
+        let crc = calculate_checksum_for_message(&msg, algo_index);
 
-        msg_vec[error_byte as usize] ^= 1 << (error_bit as u8);
+        msg[error_byte as usize] ^= 1 << (error_bit as u8);
 
-        let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
+        let result = TEST_CORRECTORS[algo_index].correct(&mut msg, crc);
 
         let eb = ((error_byte << 3) + error_bit) as u16;
 
@@ -110,46 +104,44 @@ proptest! {
 
     #[test]
     fn invalid_messages_with_more_than_one_bit_are_rejected(
-        msg: [u8; 16],
+        mut msg: [u8; 16],
         algo_index in 0..N_ALGOS,
         error_byte in 0..8,
         error_bit in 0..8,
-        error_byte_2 in 8..18,
+        error_byte_2 in 8..16,
         error_bit_2 in 0..8,
     ) {
         let algo_index = algo_index as usize;
-        let mut msg_vec = add_checksum_to_message(&msg, algo_index);
+        let crc = calculate_checksum_for_message(&msg, algo_index);
 
-        msg_vec[error_byte as usize] ^= 1 << (error_bit as u8);
-        msg_vec[error_byte_2 as usize] ^= 1 << (error_bit_2 as u8);
+        msg[error_byte as usize] ^= 1 << (error_bit as u8);
+        msg[error_byte_2 as usize] ^= 1 << (error_bit_2 as u8);
 
-        let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
+        let result = TEST_CORRECTORS[algo_index].correct(&mut msg, crc);
 
         assert_eq!(result, Err(Error::MoreThanOneBitCorrupted));
     }
 
     #[test]
-    fn invalid_crcs_are_corrected(msg: [u8; 16], algo_index in 0..N_ALGOS, error_byte in 0..2, error_bit in 0..8) {
+    fn invalid_crcs_are_corrected(mut msg: [u8; 16], algo_index in 0..N_ALGOS, error_bit in 0..16) {
         let algo_index = algo_index as usize;
-        let mut msg_vec = add_checksum_to_message(&msg, algo_index);
+        let mut crc = calculate_checksum_for_message(&msg, algo_index);
 
-        msg_vec[error_byte as usize + 16] ^= 1 << (error_bit as u8);
+        crc ^= 1 << (error_bit as u8);
 
-        let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
+        let result = TEST_CORRECTORS[algo_index].correct(&mut msg, crc);
 
-        let eb = ((error_byte << 3) + error_bit) as u16;
-
-        assert_eq!(result, Ok(Correction::CRC { error_bit: eb }));
+        assert_eq!(result, Ok(Correction::CRC { error_bit: error_bit as u16 }));
     }
 
     #[test]
-    fn invalid_messages_with_padding_corrected(msg: [u8; 10], algo_index in 0..N_ALGOS, error_byte in 0..10, error_bit in 0..8) {
+    fn invalid_messages_with_padding_corrected(mut msg: [u8; 10], algo_index in 0..N_ALGOS, error_byte in 0..10, error_bit in 0..8) {
         let algo_index = algo_index as usize;
-        let mut msg_vec = add_checksum_to_message(&msg, algo_index);
+        let crc = calculate_checksum_for_message(&msg, algo_index);
 
-        msg_vec[error_byte as usize] ^= 1 << (error_bit as u8);
+        msg[error_byte as usize] ^= 1 << (error_bit as u8);
 
-        let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
+        let result = TEST_CORRECTORS[algo_index].correct(&mut msg, crc);
 
         let eb = ((error_byte << 3) + error_bit) as u16;
 
@@ -157,16 +149,14 @@ proptest! {
     }
 
     #[test]
-    fn invalid_crcs_with_padding_are_corrected(msg: [u8; 10], algo_index in 0..N_ALGOS, error_byte in 0..2, error_bit in 0..8) {
+    fn invalid_crcs_with_padding_are_corrected(mut msg: [u8; 10], algo_index in 0..N_ALGOS, error_bit in 0..16) {
         let algo_index = algo_index as usize;
-        let mut msg_vec = add_checksum_to_message(&msg, algo_index);
+        let mut crc = calculate_checksum_for_message(&msg, algo_index);
 
-        msg_vec[error_byte as usize + 10] ^= 1 << (error_bit as u8);
+        crc ^= 1 << (error_bit as u8);
 
-        let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
+        let result = TEST_CORRECTORS[algo_index].correct(&mut msg, crc);
 
-        let eb = ((error_byte << 3) + error_bit) as u16;
-
-        assert_eq!(result, Ok(Correction::CRC { error_bit: eb }));
+        assert_eq!(result, Ok(Correction::CRC { error_bit: error_bit as u16 }));
     }
 }
