@@ -1,5 +1,8 @@
 # CRC Correction
 
+[![crates.io badge](https://img.shields.io/crates/v/crc-correction?style=flat-square)](https://crates.io/crates/crc-correction)
+[![docs.rs badge](https://img.shields.io/docsrs/crc-correction?style=flat-square)](https://docs.rs/crc-correction/latest)
+
 Attempt to correct corrupted data with a CRC. This library is able to correct single bit errors in
 data so long as the CRC algorithm is known and the data is less than a pre-defined length. Single
 bit errors in the CRC are also fixable.
@@ -36,6 +39,7 @@ fn main() {
     // Since we didn't calculate a CRC in this example
     assert_eq!(result, Err(Error::MoreThanOneBitCorrupted));
 }
+```
 
 ### Compile Times
 
