@@ -28,7 +28,7 @@
 //!
 //! fn main() {
 //!     // Note that the length leaves 4 bytes room for CRC
-//!     //compared to MAX_MSG_LEN
+//!     // compared to MAX_MSG_LEN
 //!     let mut msg = [123u8; 28];
 //!     let crc = 0u32;
 //!
