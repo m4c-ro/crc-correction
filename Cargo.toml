@@ -1,0 +1,19 @@
+[package]
+name = "crc-correction"
+version = "0.1.0"
+edition = "2024"
+authors = ["Cameron Duff <cameron@m4c.ro>"]
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+description = "CRC Correction"
+homepage = "https://github.com/m4c-ro/crc-correction"
+repository = "https://github.com/m4c-ro/crc-correction"
+keywords = ["crc", "crc32", "error", "correction"]
+categories = ["algorithms", "no-std", "no-std::no-alloc"]
+
+[dependencies]
+crc = "3.3.0"
+sort-const = "1.0.1"
+
+[dev-dependencies]
+proptest = "1.7.0"
