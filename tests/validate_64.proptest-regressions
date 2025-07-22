@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 188cb25634ab7e5e58c31388b1fbea46ef382b8f848d7a38cb42d1e2369534d7 # shrinks to msg = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], algo_index = 0, error_byte = 0, error_bit = 0
+cc 1e6e7e187f7443e9d979337069aa795d61fad4f06f135cb0fb9d445c15272989 # shrinks to msg = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], algo_index = 0, error_byte = 6, error_bit = 0
+cc 9c0223f26927fd7c5160d969e4678f5586983a9eddc51422b54250c33735c192 # shrinks to msg = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], algo_index = 0, error_byte = 0, error_bit = 0
+cc e74ef4fb3494725e0478cb2882c5ec742e7307c5948c62df699d8a2a674f3adc # shrinks to msg = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], algo_index = 0
+cc bef22e5a524b99581f10ff62a28606886c301437ee9cf6651604485b44e9e80a # shrinks to msg = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], algo_index = 1, error_byte = 0, error_bit = 0

@@ -2,46 +2,38 @@ use crc_correction::{Correction, CrcCorrector, Error};
 
 use crc::{Algorithm, Crc, Table};
 
-const N_ALGOS: usize = 12;
-const TEST_ALGOS_32: [Algorithm<u32>; N_ALGOS] = [
-    crc::CRC_32_AIXM,
-    crc::CRC_32_AUTOSAR,
-    crc::CRC_32_BASE91_D,
-    crc::CRC_32_BZIP2,
-    crc::CRC_32_CD_ROM_EDC,
-    crc::CRC_32_CKSUM,
-    crc::CRC_32_ISCSI,
-    crc::CRC_32_ISO_HDLC,
-    crc::CRC_32_JAMCRC,
-    crc::CRC_32_MEF,
-    crc::CRC_32_MPEG_2,
-    crc::CRC_32_XFER,
+const N_ALGOS: usize = 6;
+const TEST_ALGOS_64: [Algorithm<u64>; N_ALGOS] = [
+    crc::CRC_64_ECMA_182,
+    crc::CRC_64_GO_ISO,
+    crc::CRC_64_MS,
+    crc::CRC_64_REDIS,
+    crc::CRC_64_WE,
+    crc::CRC_64_XZ,
 ];
 
-const TEST_CORRECTORS: [CrcCorrector<288, u32>; N_ALGOS] = [
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[0])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[1])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[2])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[3])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[4])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[5])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[6])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[7])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[8])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[9])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[10])),
-    CrcCorrector::<288, u32>::new(Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[11])),
+const TEST_CORRECTORS: [CrcCorrector<320, u64>; N_ALGOS] = [
+    CrcCorrector::<320, u64>::new(Crc::<u64, Table<1>>::new(&TEST_ALGOS_64[0])),
+    CrcCorrector::<320, u64>::new(Crc::<u64, Table<1>>::new(&TEST_ALGOS_64[1])),
+    CrcCorrector::<320, u64>::new(Crc::<u64, Table<1>>::new(&TEST_ALGOS_64[2])),
+    CrcCorrector::<320, u64>::new(Crc::<u64, Table<1>>::new(&TEST_ALGOS_64[3])),
+    CrcCorrector::<320, u64>::new(Crc::<u64, Table<1>>::new(&TEST_ALGOS_64[4])),
+    CrcCorrector::<320, u64>::new(Crc::<u64, Table<1>>::new(&TEST_ALGOS_64[5])),
 ];
 
 use proptest::prelude::*;
 
 fn add_checksum_to_message(msg: &[u8], algo_index: usize) -> Vec<u8> {
-    let mut msg_vec = Vec::with_capacity(msg.len() + 4);
+    let mut msg_vec = Vec::with_capacity(msg.len() + 8);
     msg_vec.extend_from_slice(&msg);
 
-    let crc = Crc::<u32, Table<1>>::new(&TEST_ALGOS_32[algo_index]);
+    let crc = Crc::<u64, Table<1>>::new(&TEST_ALGOS_64[algo_index]);
     let csum = crc.checksum(&msg);
     msg_vec.extend_from_slice(&[
+        (csum >> 56) as u8,
+        (csum >> 48) as u8,
+        (csum >> 40) as u8,
+        (csum >> 32) as u8,
         (csum >> 24) as u8,
         (csum >> 16) as u8,
         (csum >> 8) as u8,
@@ -70,7 +62,7 @@ proptest! {
 
         let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
 
-        let eb = ((error_byte << 3) + error_bit) as u32;
+        let eb = ((error_byte << 3) + error_bit) as u64;
 
         assert_eq!(result, Ok(Correction::Data { error_bit: eb }));
     }
@@ -81,7 +73,7 @@ proptest! {
         algo_index in 0..N_ALGOS,
         error_byte in 0..16,
         error_bit in 0..8,
-        error_byte_2 in 16..36,
+        error_byte_2 in 16..40,
         error_bit_2 in 0..8,
     ) {
         let algo_index = algo_index as usize;
@@ -96,7 +88,7 @@ proptest! {
     }
 
     #[test]
-    fn invalid_crcs_are_corrected(msg: [u8; 32], algo_index in 0..N_ALGOS, error_byte in 0..4, error_bit in 0..8) {
+    fn invalid_crcs_are_corrected(msg: [u8; 32], algo_index in 0..N_ALGOS, error_byte in 0..8, error_bit in 0..8) {
         let algo_index = algo_index as usize;
         let mut msg_vec = add_checksum_to_message(&msg, algo_index);
 
@@ -104,7 +96,7 @@ proptest! {
 
         let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
 
-        let eb = ((error_byte << 3) + error_bit) as u32;
+        let eb = ((error_byte << 3) + error_bit) as u64;
 
         assert_eq!(result, Ok(Correction::CRC { error_bit: eb }));
     }
@@ -118,13 +110,13 @@ proptest! {
 
         let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
 
-        let eb = ((error_byte << 3) + error_bit) as u32;
+        let eb = ((error_byte << 3) + error_bit) as u64;
 
         assert_eq!(result, Ok(Correction::Data { error_bit: eb }));
     }
 
     #[test]
-    fn invalid_crcs_with_padding_are_corrected(msg: [u8; 10], algo_index in 0..N_ALGOS, error_byte in 0..4, error_bit in 0..8) {
+    fn invalid_crcs_with_padding_are_corrected(msg: [u8; 10], algo_index in 0..N_ALGOS, error_byte in 0..8, error_bit in 0..8) {
         let algo_index = algo_index as usize;
         let mut msg_vec = add_checksum_to_message(&msg, algo_index);
 
@@ -132,7 +124,7 @@ proptest! {
 
         let result = TEST_CORRECTORS[algo_index].correct(&mut msg_vec);
 
-        let eb = ((error_byte << 3) + error_bit) as u32;
+        let eb = ((error_byte << 3) + error_bit) as u64;
 
         assert_eq!(result, Ok(Correction::CRC { error_bit: eb }));
     }

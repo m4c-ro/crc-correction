@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 description = "CRC Correction"
 homepage = "https://github.com/m4c-ro/crc-correction"
 repository = "https://github.com/m4c-ro/crc-correction"
-keywords = ["crc", "crc32", "error", "correction"]
+keywords = ["crc", "crc16", "crc32", "crc64", "error", "correction"]
 categories = ["algorithms", "no-std", "no-std::no-alloc"]
 
 [dependencies]
