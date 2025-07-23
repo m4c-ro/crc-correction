@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 description = "CRC Correction"
 homepage = "https://github.com/m4c-ro/crc-correction"
 repository = "https://github.com/m4c-ro/crc-correction"
+documentation = "https://docs.rs/crc-correction"
 keywords = ["crc", "error", "correction"]
 categories = ["algorithms", "no-std", "no-std::no-alloc"]
 exclude = [
@@ -15,6 +16,9 @@ exclude = [
     ".gitignore",
     "CHANGELOG.md",
 ]
+
+[badges]
+maintenance = { status = "passively-maintained" }
 
 [dependencies]
 crc = "3.3.0"
