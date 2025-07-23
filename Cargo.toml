@@ -11,6 +11,7 @@ repository = "https://github.com/m4c-ro/crc-correction"
 documentation = "https://docs.rs/crc-correction"
 keywords = ["crc", "error", "correction"]
 categories = ["algorithms", "no-std", "no-std::no-alloc"]
+rust-version = "1.85"
 exclude = [
     "tests/**",
     ".gitignore",
