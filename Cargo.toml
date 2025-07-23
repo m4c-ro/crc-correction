@@ -10,6 +10,11 @@ homepage = "https://github.com/m4c-ro/crc-correction"
 repository = "https://github.com/m4c-ro/crc-correction"
 keywords = ["crc", "error", "correction"]
 categories = ["algorithms", "no-std", "no-std::no-alloc"]
+exclude = [
+    "tests/**",
+    ".gitignore",
+    "CHANGELOG.md",
+]
 
 [dependencies]
 crc = "3.3.0"
