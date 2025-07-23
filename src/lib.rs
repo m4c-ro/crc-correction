@@ -62,6 +62,7 @@
 //!     CrcCorrector::<MAX_MSG_LEN, u32>::new(CRC);
 //! ```
 #![no_std]
+#![forbid(unsafe_code)]
 #![forbid(missing_docs)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
