@@ -41,6 +41,48 @@ fn main() {
 }
 ```
 
+### Counter Examples
+
+```rust
+const CRC: Crc<u16, Table<1>> =
+    Crc::<u16, Table<1>>::new(&crc::CRC_16_DNP);
+
+// Fails to compile, this CRC does not perform well for
+// error correction
+const CORRECTOR: CrcCorrector::<256, u16> =
+    CrcCorrector::<256, u16>::new(CRC);
+```
+
+```rust
+const CRC: Crc<u16, Table<1>> =
+    Crc::<u16, Table<1>>::new(&crc::CRC_16_DECT_X);
+
+// Fails to compile, this message length is too large
+// for this CRC for error correction. Select another 16
+// bit CRC (or a larger) one to fix this.
+const CORRECTOR: CrcCorrector::<2048, u16> =
+    CrcCorrector::<2048, u16>::new(CRC);
+```
+
+```rust
+const CRC: Crc<u16, Table<1>> =
+    Crc::<u16, Table<1>>::new(&crc::CRC_16_DNP);
+
+// Fails to compile, the message is not a multiple of 8
+const CORRECTOR: CrcCorrector::<122, u16> =
+    CrcCorrector::<122, u16>::new(CRC);
+```
+
+```rust
+const CRC: Crc<u16, Table<1>> =
+    Crc::<u16, Table<1>>::new(&crc::CRC_16_DNP);
+
+// Fails to compile, the message length is unreasonably
+// large for a CRC
+const CORRECTOR: CrcCorrector::<65536, u16> =
+    CrcCorrector::<65536, u16>::new(CRC);
+```
+
 ### Compile Times
 
 A lookup table is generated containing a CRC for every bit in the desired maximum message length.
